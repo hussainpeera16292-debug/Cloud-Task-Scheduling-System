@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OptiSched: DAA Multi-Machine Task Scheduling Platform</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="dark-mode">
+
+  <!-- TOP NAVIGATION HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-badge">
+        <span class="logo-icon">⚡</span>
+        <div class="logo-text">
+          <h1>OptiSched <span class="tag">DAA HACKATHON</span></h1>
+          <p class="subtitle">Multi-Machine Priority, Burst Time & Deadline Task Scheduler</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="tab-dashboard">
+        <span class="tab-icon">📊</span> Dashboard & Gantt
+      </button>
+      <button class="nav-tab" data-tab="tab-arena">
+        <span class="tab-icon">⚔️</span> Algorithm Arena
+      </button>
+      <button class="nav-tab" data-tab="tab-visualizer">
+        <span class="tab-icon">🔍</span> Live Step Trace
+      </button>
+      <button class="nav-tab" data-tab="tab-theory">
+        <span class="tab-icon">📚</span> Viva & Theory
+      </button>
+    </nav>
+
+    <div class="header-right">
+      <button id="themeToggleBtn" class="btn btn-outline btn-sm" title="Toggle Theme">🌓 Theme</button>
+      <button id="exportReportBtn" class="btn btn-primary btn-sm">📥 Export Report</button>
+    </div>
+  </header>
+
+  <!-- QUICK PRESET & CONTROLS TOOLBAR -->
+  <section class="toolbar">
+    <div class="toolbar-section">
+      <span class="toolbar-label">Scenario Presets:</span>
+      <div class="preset-buttons">
+        <button class="btn btn-chip active" data-preset="cloud_cluster">🚀 Cloud Cluster</button>
+        <button class="btn btn-chip" data-preset="realtime_iot">⚡ Edge IoT</button>
+        <button class="btn btn-chip" data-preset="overloaded_stress">💥 Overload Bottleneck</button>
+        <button id="btnRandomGen" class="btn btn-chip">🎲 Generate Random</button>
+      </div>
+    </div>
+
+    <div class="toolbar-section algorithm-selector-section">
+      <span class="toolbar-label">Active Algorithm:</span>
+      <select id="algorithmSelect" class="form-select">
+        <option value="dynamic_greedy" selected>Dynamic Composite Greedy (Heap-Based) [O(N log N + N log M)]</option>
+        <option value="edf">Earliest Deadline First (EDF) [O(N log N + N*M)]</option>
+        <option value="priority_first">High-Priority First (HPF) [O(N log N + N*M)]</option>
+        <option value="spt">Shortest Processing Time (SPT / SJF) [O(N log N + N*M)]</option>
+        <option value="branch_and_bound">Branch & Bound (Exact / Beam) [Pruned Search]</option>
+        <option value="genetic_algorithm">Genetic Metaheuristic (GA) [Evolutionary]</option>
+      </select>
+      <button id="btnRunSchedule" class="btn btn-accent">▶ Run Scheduler</button>
+    </div>
+  </section>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="main-content">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: SCHEDULER DASHBOARD & GANTT -->
+    <!-- ========================================== -->
+    <div id="tab-dashboard" class="tab-pane active">
+      
+      <!-- KPI STAT CARDS ROW -->
+      <section class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon icon-blue">⏱️</div>
+          <div class="kpi-data">
+            <span class="kpi-title">Total Makespan</span>
+            <span class="kpi-value" id="kpiMakespan">0.0 s</span>
+            <span class="kpi-sub" id="kpiElapsed">Compute: 0 ms</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-green">🎯</div>
+          <div class="kpi-data">
+            <span class="kpi-title">Deadlines Met Rate</span>
+            <span class="kpi-value" id="kpiOnTime">100%</span>
+            <span class="kpi-sub" id="kpiMetRatio">0/0 Tasks</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-amber">🛡️</div>
+          <div class="kpi-data">
+            <span class="kpi-title">Critical Tasks Met (P4-P5)</span>
+            <span class="kpi-value" id="kpiCritical">0/0</span>
+            <span class="kpi-sub" id="kpiMissed">Missed: 0</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-purple">⚖️</div>
+          <div class="kpi-data">
+            <span class="kpi-title">Weighted Tardiness Penalty</span>
+            <span class="kpi-value" id="kpiPenalty">0.0</span>
+            <span class="kpi-sub" id="kpiLoadStd">Load StdDev: ±0.0</span>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon icon-cyan">⌛</div>
+          <div class="kpi-data">
+            <span class="kpi-title">Avg Turnaround / Wait</span>
+            <span class="kpi-value" id="kpiTurnaround">0.0 s</span>
+            <span class="kpi-sub" id="kpiWait">Avg Wait: 0.0 s</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- GANTT TIMELINE VISUALIZATION -->
+      <section class="panel gantt-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>📅 Multi-Machine Gantt Schedule Timeline</h2>
+            <p class="panel-subtitle">Visual timeline of assigned computational tasks, machine execution windows, and deadline targets</p>
+          </div>
+          <div class="gantt-legend">
+            <span class="legend-item"><span class="badge pri-5">P5 Critical</span></span>
+            <span class="legend-item"><span class="badge pri-4">P4 High</span></span>
+            <span class="legend-item"><span class="badge pri-3">P3 Medium</span></span>
+            <span class="legend-item"><span class="badge pri-2">P2 Low</span></span>
+            <span class="legend-item"><span class="badge pri-1">P1 Bulk</span></span>
+            <span class="legend-item"><span class="legend-marker marker-deadline"></span> Deadline Target</span>
+            <span class="legend-item"><span class="legend-marker marker-late"></span> Missed / Delayed</span>
+          </div>
+        </div>
+
+        <!-- SVG GANTT CONTAINER -->
+        <div class="gantt-container" id="ganttWrapper">
+          <div id="ganttChart" class="gantt-chart">
+            <!-- Rendered dynamically via app.js -->
+          </div>
+        </div>
+
+        <!-- MACHINE UTILIZATION BARS -->
+        <div class="machine-utilization-section">
+          <h3>⚡ Machine Load & Utilization Distribution</h3>
+          <div id="machineLoadBars" class="machine-load-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFIGURATION PANELS: TASKS & MACHINES -->
+      <div class="config-grid">
+        <!-- TASK MANAGEMENT TABLE -->
+        <section class="panel task-panel">
+          <div class="panel-header">
+            <div>
+              <h3>📋 Task Queue (<span id="taskCountLabel">8</span> Tasks)</h3>
+              <p class="panel-subtitle">Configure priority, burst execution time, and strict deadlines</p>
+            </div>
+            <div class="panel-actions">
+              <button id="btnAddTaskModal" class="btn btn-sm btn-outline">+ Add Task</button>
+              <button id="btnClearTasks" class="btn btn-sm btn-ghost">Clear All</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table" id="tasksTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Task Name</th>
+                  <th>Priority</th>
+                  <th>Exec Time (s)</th>
+                  <th>Deadline (s)</th>
+                  <th>Arrival (s)</th>
+                  <th>Capability</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tasksTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- MACHINE MANAGEMENT & WEIGHTS PANEL -->
+        <section class="panel machine-panel">
+          <div class="panel-header">
+            <div>
+              <h3>🖥️ Computational Machines (<span id="machineCountLabel">3</span> Nodes)</h3>
+              <p class="panel-subtitle">Heterogeneous processor nodes & capability affinities</p>
+            </div>
+            <div class="panel-actions">
+              <button id="btnAddMachineModal" class="btn btn-sm btn-outline">+ Add Machine</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table" id="machinesTable">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Machine Name</th>
+                  <th>Speed Factor</th>
+                  <th>Capabilities</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="machinesTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- DYNAMIC HEURISTIC WEIGHTS TUNING -->
+          <div class="weights-tuning-box">
+            <h4>⚙️ Dynamic Composite Greedy Weight Tuning</h4>
+            <p class="hint">Adjust objective balance between priority, deadline slack, and SJF burst time</p>
+            <div class="slider-row">
+              <label>Priority Weight (α): <strong id="lblWeightPri">3.0</strong></label>
+              <input type="range" id="sliderWeightPri" min="0" max="10" step="0.5" value="3.0">
+            </div>
+            <div class="slider-row">
+              <label>Deadline Urgency Weight (β): <strong id="lblWeightDead">2.5</strong></label>
+              <input type="range" id="sliderWeightDead" min="0" max="10" step="0.5" value="2.5">
+            </div>
+            <div class="slider-row">
+              <label>SJF Execution Brevity (γ): <strong id="lblWeightExec">1.0</strong></label>
+              <input type="range" id="sliderWeightExec" min="0" max="10" step="0.5" value="1.0">
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: ALGORITHM ARENA & BENCHMARK -->
+    <!-- ========================================== -->
+    <div id="tab-arena" class="tab-pane">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>⚔️ Algorithmic Comparison Arena</h2>
+            <p class="panel-subtitle">Execute all 6 algorithmic paradigms simultaneously on the exact same task set to evaluate DAA metrics</p>
+          </div>
+          <button id="btnRunBenchmark" class="btn btn-accent">⚡ Run Full Arena Benchmark</button>
+        </div>
+
+        <!-- WINNER BANNER -->
+        <div id="winnerBanner" class="winner-card" style="display: none;">
+          <div class="winner-icon">🏆</div>
+          <div class="winner-info">
+            <h3 id="winnerTitle">Recommended Champion: Dynamic Composite Greedy</h3>
+            <p id="winnerReason">Achieved the lowest combined weighted penalty with optimal makespan and sub-millisecond execution time.</p>
+          </div>
+        </div>
+
+        <!-- LEADERBOARD TABLE -->
+        <div class="table-container leaderboard-table-container">
+          <table class="data-table leaderboard-table" id="arenaTable">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Algorithm</th>
+                <th>DAA Paradigm</th>
+                <th>Time Complexity</th>
+                <th>Makespan</th>
+                <th>On-Time %</th>
+                <th>Missed</th>
+                <th>Weighted Penalty</th>
+                <th>Load StdDev</th>
+                <th>Runtime (ms)</th>
+              </tr>
+            </thead>
+            <tbody id="arenaTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- COMPARATIVE METRICS CHARTS -->
+        <div class="comparison-charts-grid">
+          <div class="chart-box">
+            <h4>📊 Makespan Comparison (Seconds - Lower is Better)</h4>
+            <div id="barChartMakespan" class="custom-bar-chart"></div>
+          </div>
+          <div class="chart-box">
+            <h4>🎯 Missed Deadlines & Penalty (Lower is Better)</h4>
+            <div id="barChartPenalty" class="custom-bar-chart"></div>
+          </div>
+          <div class="chart-box">
+            <h4>⚡ Algorithm Execution Speed (ms - Asymptotic Efficiency)</h4>
+            <div id="barChartRuntime" class="custom-bar-chart"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: LIVE STEP-BY-STEP VISUALIZER -->
+    <!-- ========================================== -->
+    <div id="tab-visualizer" class="tab-pane">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>🔍 Live Step-by-Step Algorithmic Decision Trace</h2>
+            <p class="panel-subtitle">Inspect how the scheduling algorithm evaluates candidate tasks, scores urgency, and selects machine allocations</p>
+          </div>
+          <!-- PLAYER CONTROLS -->
+          <div class="player-controls">
+            <button id="btnStepFirst" class="btn btn-outline btn-sm">⏮ Start</button>
+            <button id="btnStepPrev" class="btn btn-outline btn-sm">◀ Previous</button>
+            <button id="btnStepPlay" class="btn btn-accent btn-sm">▶ Auto Play</button>
+            <button id="btnStepNext" class="btn btn-outline btn-sm">Next ▶</button>
+            <button id="btnStepLast" class="btn btn-outline btn-sm">⏭ End</button>
+            <span class="step-indicator" id="stepCounterLabel">Step 0 / 0</span>
+          </div>
+        </div>
+
+        <!-- ACTIVE STEP HIGHLIGHT CARD -->
+        <div class="active-step-card" id="activeStepCard">
+          <div class="step-badge" id="stepNumberBadge">Step #1</div>
+          <div class="step-content">
+            <h3 id="stepActionTitle">Ready to simulate</h3>
+            <p id="stepActionExplanation">Click "Auto Play" or "Next" to step through the greedy decision tree.</p>
+            <div class="step-tags" id="stepTags"></div>
+          </div>
+        </div>
+
+        <!-- FULL DECISION LOG TABLE -->
+        <div class="table-container trace-table-container">
+          <table class="data-table" id="traceTable">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Simulation Time</th>
+                <th>Selected Task</th>
+                <th>Priority</th>
+                <th>Target Machine</th>
+                <th>Window [Start → End]</th>
+                <th>Deadline</th>
+                <th>Outcome</th>
+                <th>Algorithmic Explanation</th>
+              </tr>
+            </thead>
+            <tbody id="traceTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: VIVA PREP & ALGORITHM THEORY -->
+    <!-- ========================================== -->
+    <div id="tab-theory" class="tab-pane">
+      <div class="theory-layout">
+        
+        <!-- SECTION 1: FORMAL PROBLEM STATEMENT -->
+        <section class="panel">
+          <h2>1. Formal DAA Problem Formulation</h2>
+          <p>
+            <strong>Problem Statement:</strong> Given a set of \(N\) independent computational tasks \(\mathcal{T} = \{T_1, T_2, \dots, T_N\}\) 
+            and \(M\) parallel heterogeneous machines \(\mathcal{M} = \{M_1, M_2, \dots, M_M\}\).
+          </p>
+          <div class="math-card">
+            <p>Each task \(T_i = (p_i, e_i, d_i, r_i)\) has:</p>
+            <ul>
+              <li><strong>Priority \(p_i \in [1, 5]\):</strong> Criticality weight (5 = Critical, 1 = Low).</li>
+              <li><strong>Burst Execution Time \(e_i > 0\):</strong> Processing cycles required.</li>
+              <li><strong>Deadline \(d_i > 0\):</strong> Hard/soft time constraint before which task must finish.</li>
+              <li><strong>Release / Arrival Time \(r_i \ge 0\):</strong> Earliest time task becomes available for scheduling.</li>
+            </ul>
+            <p>Each machine \(M_j\) has speed multiplier \(s_j\). Effective runtime: \(e_{i,j} = \frac{e_i}{s_j}\).</p>
+          </div>
+
+          <h3 class="mt-4">Multi-Objective Optimization Goals</h3>
+          <div class="objectives-grid">
+            <div class="objective-card">
+              <h4>🎯 1. Minimize Weighted Tardiness</h4>
+              <p>$$\min \sum_{i=1}^N p_i \cdot \max(0, C_i - d_i)$$</p>
+              <span class="subtext">Penalizes missing urgent, high-priority tasks severely.</span>
+            </div>
+            <div class="objective-card">
+              <h4>⏱️ 2. Minimize Makespan</h4>
+              <p>$$\min \max_{j \in [1, M]} C_{\max, j}$$</p>
+              <span class="subtext">Minimizes the overall completion time of the entire task batch.</span>
+            </div>
+            <div class="objective-card">
+              <h4>⚖️ 3. Maximize Machine Balance</h4>
+              <p>$$\min \sigma(\text{Busy}_1, \dots, \text{Busy}_M)$$</p>
+              <span class="subtext">Avoids machine starvation and hotspot bottlenecks.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: ALGORITHM COMPLEXITY SCORECARD -->
+        <section class="panel">
+          <h2>2. Asymptotic Time & Space Complexity Analysis</h2>
+          <table class="data-table complexity-table">
+            <thead>
+              <tr>
+                <th>Algorithm</th>
+                <th>DAA Paradigm</th>
+                <th>Time Complexity</th>
+                <th>Space Complexity</th>
+                <th>Optimal Use-Case</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Dynamic Composite Greedy (DCG)</strong></td>
+                <td><span class="badge paradigm-greedy">Greedy + Min-Heap</span></td>
+                <td><code>O(N log N + N log M)</code></td>
+                <td><code>O(N + M)</code></td>
+                <td>High-throughput cloud clusters with dynamic arrivals & mixed priorities.</td>
+              </tr>
+              <tr>
+                <td><strong>Earliest Deadline First (EDF)</strong></td>
+                <td><span class="badge paradigm-greedy">Real-Time Greedy</span></td>
+                <td><code>O(N log N + N · M)</code></td>
+                <td><code>O(N + M)</code></td>
+                <td>Strict real-time systems under non-overloaded operating conditions.</td>
+              </tr>
+              <tr>
+                <td><strong>High-Priority First (HPF)</strong></td>
+                <td><span class="badge paradigm-greedy">Priority Queue</span></td>
+                <td><code>O(N log N + N · M)</code></td>
+                <td><code>O(N + M)</code></td>
+                <td>Mission-critical systems where Priority 5 jobs cannot ever be delayed.</td>
+              </tr>
+              <tr>
+                <td><strong>Shortest Processing Time (SPT)</strong></td>
+                <td><span class="badge paradigm-greedy">Greedy (SJF)</span></td>
+                <td><code>O(N log N + N · M)</code></td>
+                <td><code>O(N + M)</code></td>
+                <td>Interactive servers maximizing job throughput and minimizing waiting time.</td>
+              </tr>
+              <tr>
+                <td><strong>Branch & Bound (B&B)</strong></td>
+                <td><span class="badge paradigm-bb">Tree Search & Pruning</span></td>
+                <td><code>O(M^N) worst-case</code> (Pruned to polynomial)</td>
+                <td><code>O(N)</code></td>
+                <td>Small task sets (N ≤ 12) requiring mathematical optimality proof.</td>
+              </tr>
+              <tr>
+                <td><strong>Genetic Algorithm (GA)</strong></td>
+                <td><span class="badge paradigm-meta">Evolutionary Metaheuristic</span></td>
+                <td><code>O(G · P · N · M)</code></td>
+                <td><code>O(P · N)</code></td>
+                <td>High-dimensional NP-hard scheduling where heuristic search gets stuck.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- SECTION 3: VIVA FLASHCARDS FOR JUDGES -->
+        <section class="panel">
+          <h2>3. DAA Viva Preparation & Defense Questions</h2>
+          <div class="viva-grid">
+            <div class="viva-card">
+              <span class="viva-q">Q1: Why is Multi-Machine Scheduling with Deadlines NP-hard?</span>
+              <p class="viva-a">
+                Even without deadlines or priorities, parallel machine makespan minimization (P || Cmax) is reducible from the classic NP-complete <em>Partition Problem</em>. Introducing release dates and deadline constraints creates strongly NP-hard optimization.
+              </p>
+            </div>
+
+            <div class="viva-card">
+              <span class="viva-q">Q2: Why does pure Earliest Deadline First (EDF) fail when overloaded?</span>
+              <p class="viva-a">
+                Under overloaded conditions (Domino effect), EDF continuously prioritizes tasks that are already doomed to miss their deadlines or have zero slack, leading to a cascade of missed deadlines. Our <strong>Dynamic Composite Greedy</strong> solves this by balancing slack with priority weight and SJF burst.
+              </p>
+            </div>
+
+            <div class="viva-card">
+              <span class="viva-q">Q3: How does the Branch and Bound bounding function work?</span>
+              <p class="viva-a">
+                We calculate a Lower Bound on partial schedules: \(LB = \text{CurrentPenalty} + \sum_{remaining} \min(p_i \cdot \text{slack})\). If \(LB \ge \text{BestUpperBound}\), the entire subtree is immediately pruned without traversing its \(M^k\) descendants.
+              </p>
+            </div>
+
+            <div class="viva-card">
+              <span class="viva-q">Q4: What data structures ensure efficient execution?</span>
+              <p class="viva-a">
+                We utilize binary min-heaps (priority queues) to maintain machine availability times in \(O(\log M)\) and sort ready task pools in \(O(N \log N)\), eliminating expensive \(O(N \cdot M)\) linear scans.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: 4-MEMBER TEAM FORMULA -->
+        <section class="panel">
+          <h2>4. Hackathon Team Responsibilities (The 4-Member Formula)</h2>
+          <div class="team-roles-grid">
+            <div class="role-card">
+              <div class="role-badge">Member 1</div>
+              <h4>Problem Analysis & Algorithm Design</h4>
+              <ul>
+                <li>Formulated multi-objective mathematical objective function</li>
+                <li>Designed Dynamic Composite Greedy heuristic and state-space tree</li>
+                <li>Derived asymptotic time and space complexity proofs</li>
+              </ul>
+            </div>
+            <div class="role-card">
+              <div class="role-badge">Member 2</div>
+              <h4>Implementation & Architecture</h4>
+              <ul>
+                <li>Implemented the 6 algorithm modules in Python with standard library</li>
+                <li>Engineered the zero-dependency REST HTTP backend</li>
+                <li>Built interactive SVG Gantt chart and live visualizer engine</li>
+              </ul>
+            </div>
+            <div class="role-card">
+              <div class="role-badge">Member 3</div>
+              <h4>Testing, Edge Cases & Optimization</h4>
+              <ul>
+                <li>Constructed stress test suite with overloaded conditions and zero-slack tasks</li>
+                <li>Benchmarked execution runtime across 6 algorithmic paradigms</li>
+                <li>Validated memory footprint and zero-starvation guarantees</li>
+              </ul>
+            </div>
+            <div class="role-card">
+              <div class="role-badge">Member 4</div>
+              <h4>Documentation, Viva & Presentation</h4>
+              <ul>
+                <li>Prepared comprehensive documentation and viva defense deck</li>
+                <li>Structured presentation walkthrough and comparative leaderboard</li>
+                <li>Organized GitHub repository structure, README, and clean commits</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: ADD TASK -->
+  <div id="modalAddTask" class="modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>➕ Add Computational Task</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="formAddTask">
+        <div class="form-group">
+          <label>Task Name</label>
+          <input type="text" id="inputTaskName" required placeholder="e.g. Real-Time Inference Node">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Priority (1 = Low, 5 = Critical)</label>
+            <select id="inputTaskPriority" class="form-select">
+              <option value="5">P5 - Critical Emergency</option>
+              <option value="4">P4 - High Priority</option>
+              <option value="3" selected>P3 - Medium Standard</option>
+              <option value="2">P2 - Low Background</option>
+              <option value="1">P1 - Bulk Analytics</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Capability Requirement</label>
+            <select id="inputTaskCapability" class="form-select">
+              <option value="general" selected>General CPU</option>
+              <option value="gpu">GPU Accelerated</option>
+              <option value="highmem">High Memory</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Burst Execution Time (sec)</label>
+            <input type="number" id="inputTaskExec" min="1" max="100" value="5" required>
+          </div>
+          <div class="form-group">
+            <label>Deadline (sec)</label>
+            <input type="number" id="inputTaskDeadline" min="1" max="500" value="15" required>
+          </div>
+          <div class="form-group">
+            <label>Arrival / Release Time (sec)</label>
+            <input type="number" id="inputTaskArrival" min="0" max="200" value="0" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD MACHINE -->
+  <div id="modalAddMachine" class="modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>➕ Add Computational Machine Node</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="formAddMachine">
+        <div class="form-group">
+          <label>Machine Name</label>
+          <input type="text" id="inputMachineName" required placeholder="e.g. GPU Worker Node #3">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Processing Speed Factor</label>
+            <select id="inputMachineSpeed" class="form-select">
+              <option value="2.0">2.0x (Ultra High-End)</option>
+              <option value="1.5">1.5x (Fast GPU Node)</option>
+              <option value="1.2">1.2x (Enhanced CPU)</option>
+              <option value="1.0" selected>1.0x (Standard Node)</option>
+              <option value="0.8">0.8x (Eco Worker)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Special Capabilities</label>
+            <select id="inputMachineCapability" class="form-select">
+              <option value="general" selected>General Purpose</option>
+              <option value="gpu">GPU + General</option>
+              <option value="highmem">High-Memory + General</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Machine</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FLOATING NOTIFICATION TOAST -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
